@@ -2,6 +2,7 @@
 
 import pulumi
 import pulumi_gcp as gcp
+from pulumi import Output
 
 gke_sa = gcp.serviceaccount.Account("gke_sa",
     account_id="gke-sa",
@@ -33,4 +34,12 @@ ondemand_nodes = gcp.container.NodePool("on-demand-nodes",
         machine_type="e2-micro",
         service_account=gke_sa.email,
         oauth_scopes=["https://www.googleapis.com/auth/cloud-platform"],
+    ))
+
+#create log metric to detect no scale up in Spot MIG
+spot_mig_no_scale_up_metric = gcp.logging.Metric("SpotMigNoScaleUpMetric",
+    filter=Output.concat('resource.type=k8s_cluster AND resource.labels.location= us-central1 AND resource.labels.cluster_name=',primary.name,' AND severity>=DEFAULT AND jsonPayload.noDecisionStatus.noScaleUp.napFailureReason.messageId=no.scale.up.nap.disabled'),
+    metric_descriptor=gcp.logging.MetricMetricDescriptorArgs(
+        metric_kind="DELTA",
+        value_type="INT64",
     ))
