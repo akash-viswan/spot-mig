@@ -10,13 +10,24 @@ location = config.get('region')
 gke_sa = gcp.serviceaccount.Account("gke_sa",
     account_id="gke-sa",
     display_name="GKE Service Account")
+
+gke_sa_perm = gcp.projects.IAMMember("gke-sa-perm",
+    member=Output.concat('serviceAccount:',gke_sa.email),
+    project = proj,
+    role="roles/container.clusterAdmin")
+gke_sa_perm2 = gcp.projects.IAMMember("gke-sa-perm2",
+    member=Output.concat('serviceAccount:',gke_sa.email),
+    project = proj,
+    role="roles/compute.networkAdmin")
+    
 primary = gcp.container.Cluster("primary",
     location="us-central1",
     remove_default_node_pool=True,
     initial_node_count=1)
-primary_spot_nodes = gcp.container.NodePool("primary-spot-nodes",
+primary_spot_nodes = gcp.container.NodePool("worker-nodes-spot",
     location="us-central1",
     cluster=primary.name,
+    name= "worker-nodes-spot",
     autoscaling = gcp.container.NodePoolAutoscalingArgs(
         max_node_count = 1,
         min_node_count = 0
@@ -29,10 +40,11 @@ primary_spot_nodes = gcp.container.NodePool("primary-spot-nodes",
         oauth_scopes=["https://www.googleapis.com/auth/cloud-platform"],
     ))
 
-ondemand_nodes = gcp.container.NodePool("on-demand-nodes",
+ondemand_nodes = gcp.container.NodePool("worker-nodes-ondemand",
     location="us-central1",
     cluster=primary.name,
     node_count=0,
+    name="worker-nodes-ondemand",
     node_config=gcp.container.NodePoolNodeConfigArgs(
         machine_type="e2-micro",
         service_account=gke_sa.email,
@@ -84,8 +96,9 @@ py_function = gcp.cloudfunctions.Function(
     runtime="python37",
     source_archive_object=py_bucket_object.name,
     entry_point="handler",
+    service_account_email=gke_sa.email,
     event_trigger= gcp.cloudfunctions.FunctionEventTriggerArgs(event_type="providers/cloud.pubsub/eventTypes/topic.publish",resource=pubsub.name),
-    available_memory_mb=128,
+    available_memory_mb=512,
 )
 
 py_invoker = gcp.cloudfunctions.FunctionIamMember(
