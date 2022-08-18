@@ -1,7 +1,13 @@
 #create GKE Cluster and nodepools
+from urllib import request
 import pulumi_gcp as gcp
 from pulumi import Output
 import pulumi
+import base64
+
+def string_to_base64(message):
+    message_bytes=message.encode('ascii')
+    return base64.b64encode(message_bytes)
 
 config = pulumi.Config('gcp')
 proj = config.get('project')
@@ -109,3 +115,31 @@ py_invoker = gcp.cloudfunctions.FunctionIamMember(
     role="roles/cloudfunctions.invoker",
     member="allUsers",
 )
+
+#cloud function to scale down on-demand periodically
+
+py_bucket_object2 = gcp.storage.BucketObject(
+    "scale-down-zip",
+    bucket=bucket.name,
+    source=pulumi.asset.AssetArchive({
+        ".": pulumi.asset.FileArchive("./functions/scale-down-ondemand-np")
+    }))
+
+py_function2 = gcp.cloudfunctions.Function(
+    "scale-down-ondemand-np",
+    source_archive_bucket=bucket.name,
+    runtime="python37",
+    source_archive_object=py_bucket_object2.name,
+    entry_point="handler",
+    service_account_email=gke_sa.email,
+    trigger_http = True,
+    available_memory_mb=512,
+)
+request_body =  Output.all(f"{{'nodepool':'/projects/{proj}/zones/us-central1/clusters/{primary.name}/nodePools/{ondemand_nodes.name}}}").apply(lambda request_body:string_to_base64(request_body[0]))
+#job = gcp.cloudscheduler.Job("trigger-scale-down-ondemand-np",
+#  
+#    attempt_deadline="320s",
+#    description="trigger scale down on demand node pool",
+#    schedule="0 * * * *",
+#    time_zone="America/Denver",
+#    http_target=gcp.cloudscheduler.JobHttpTargetArgs(uri=py_function2.https_trigger_url, body=request_body, http_method='POST'))
