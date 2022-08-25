@@ -136,10 +136,10 @@ py_function2 = gcp.cloudfunctions.Function(
     available_memory_mb=512,
 )
 request_body =  Output.all(f"{{'nodepool':'/projects/{proj}/zones/us-central1/clusters/{primary.name}/nodePools/{ondemand_nodes.name}}}").apply(lambda request_body:string_to_base64(request_body[0]))
-#job = gcp.cloudscheduler.Job("trigger-scale-down-ondemand-np",
-#  
-#    attempt_deadline="320s",
-#    description="trigger scale down on demand node pool",
-#    schedule="0 * * * *",
-#    time_zone="America/Denver",
-#    http_target=gcp.cloudscheduler.JobHttpTargetArgs(uri=py_function2.https_trigger_url, body=request_body, http_method='POST'))
+job = gcp.cloudscheduler.Job("trigger-scale-down-ondemand-np",
+  
+    attempt_deadline="320s",
+    description="trigger scale down on demand node pool",
+    schedule="0 * * * *",
+    time_zone="America/Denver",
+    http_target=gcp.cloudscheduler.JobHttpTargetArgs(uri=py_function2.https_trigger_url, body=request_body, http_method='POST'))
